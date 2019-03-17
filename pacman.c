@@ -44,6 +44,7 @@ typedef struct ghost_info {
 	char last_direction;
 	char covered_field;
 	int active;
+	int speed;
 } ghost_info;
 
 
@@ -113,13 +114,13 @@ void add_food(char board[FIELD_HEIGHT][FIELD_WIDTH]) {
 }
 
 //FUNCTION: print game board
-void print_board(char board[FIELD_HEIGHT][FIELD_WIDTH], int score, int lives, int level, int food_to_win) {
+void print_board(char board[FIELD_HEIGHT][FIELD_WIDTH], int score, int lives, int level, int food_to_win, char current_player_symbol) {
 	system("clear");
 	printf("PACMAN ---- LEVEL %d\n\n", level);
 	for (int y = 0; y < FIELD_HEIGHT; y++) {
 		for (int x = 0; x < FIELD_WIDTH; x++) {
 			if (board[y][x] == PLAYER_SYMBOL) {
-				printf("\033[1;33m%c\033[0m", board[y][x]);
+				printf("\033[1;33m%c\033[0m", current_player_symbol);
 			} else if (board[y][x] == WALL_SYMBOL) {
 				printf("\033[1;44m \033[0m");
 			} else if (board[y][x] == GHOST_SYMBOL) {
@@ -137,9 +138,12 @@ void print_board(char board[FIELD_HEIGHT][FIELD_WIDTH], int score, int lives, in
 
 
 //FUNCTION: update player position + board, score, lives, game_over
-position update_player_position(char board[FIELD_HEIGHT][FIELD_WIDTH], position player_position, char* player_next_action, int* score, int* lives, int* game_over, int* pacman_caught) {
+position update_player_position(char board[FIELD_HEIGHT][FIELD_WIDTH], position player_position, char* player_next_action, int* score, int* lives, int* game_over, int* pacman_caught, char* player_last_action) {
 	position next_position = player_position;
 	
+	//prevent removing two lives at once
+	int life_removed = 0;
+
 	if (*pacman_caught == 1) {
 		if (*lives > 0) {
 			*lives -= 1;
@@ -147,6 +151,7 @@ position update_player_position(char board[FIELD_HEIGHT][FIELD_WIDTH], position 
 			*game_over = 1;
 		}
 		*pacman_caught = 0;
+		life_removed = 1;
 	}
 
 	if (*player_next_action == MOVE_LEFT && player_position.x == 0) {
@@ -181,25 +186,34 @@ position update_player_position(char board[FIELD_HEIGHT][FIELD_WIDTH], position 
 		}
 		board[player_position.y][player_position.x] = EMPTY_SYMBOL;
 		player_position = next_position;
-		board[player_position.y][player_position.x] = PLAYER_SYMBOL;
 	} else if (destination == GHOST_SYMBOL) {
-		if (*lives > 0) {
-			*lives -= 1;
-		} else {
-			*game_over = 1;
+		if (life_removed == 0) {
+			if (*lives > 0) {
+				*lives -= 1;
+			} else {
+				*game_over = 1;
+			}
 		}
 		board[player_position.y][player_position.x] = EMPTY_SYMBOL;
 		player_position = next_position;
-		board[player_position.y][player_position.x] = PLAYER_SYMBOL;
 	}
 
-	*player_next_action = MOVE_STOP;
+	board[player_position.y][player_position.x] = PLAYER_SYMBOL;
+	*player_last_action = *player_next_action;
 	return player_position;
 }
 
 
 //FUNCTION: move ghosts and update board accordingly
 void update_ghost_positions(char board[FIELD_HEIGHT][FIELD_WIDTH], int nr_ghosts, ghost_info ghost_array[4], int* pacman_caught) {
+	
+	//check if pacman was caught
+	for (int i = 0; i < nr_ghosts; i++) {
+		if (board[ghost_array[i].pos.y][ghost_array[i].pos.x] == PLAYER_SYMBOL) {
+			*pacman_caught = 1;
+		}
+	}
+	
 	//remove ghosts from board
 	for (int i = 0; i < nr_ghosts; i++) {
 		if (ghost_array[i].covered_field != UNDEFINED_SYMBOL) {
@@ -274,8 +288,29 @@ void update_ghost_positions(char board[FIELD_HEIGHT][FIELD_WIDTH], int nr_ghosts
 }
 
 
-//FUNCTION/THREAD: handle user input
+//FUNCTION: update player symbol before printing
+char update_player_symbol (char player_last_action, char current_player_symbol) {
+	switch (player_last_action) {
+		case MOVE_UP:
+			current_player_symbol = 'v';
+			break;
+		case MOVE_RIGHT:
+			current_player_symbol = '<';
+			break;
+		case MOVE_DOWN:
+			current_player_symbol = '^';
+			break;
+		case MOVE_LEFT:
+			current_player_symbol = '>';
+			break;
+		default:
+			break;
+	}
+	return current_player_symbol;
+}
 
+
+//FUNCTION/THREAD: handle user input
 void* getch_loop(void* ptr) {
 	char* player_next_action = (char*) ptr;
 
@@ -297,19 +332,23 @@ int main() {
 	int level = 0;
 	int moves;
 	int pacman_caught = 0;
+	char current_player_symbol = '<';
 
 	//store next movement direction
 	char player_next_action;
 	player_next_action = MOVE_STOP;
 
+	//store last movement direction for printing
+	char player_last_action = MOVE_RIGHT;
+
 	//store info about available levels
 	level_info arr_level[] = {
-		{100000, 1, 60},
-		{90000, 1, 70},
-		{80000, 2, 80},
-		{70000, 2, 90},
-		{60000, 3, 100},
-		{50000, 3, 110}
+		{150000, 0, 60},
+		{140000, 1, 70},
+		{130000, 1, 80},
+		{120000, 2, 90},
+		{110000, 2, 100},
+		{100000, 3, 110}
 	};
 	int nr_levels = sizeof(arr_level) / sizeof(arr_level[0]);
 
@@ -329,6 +368,7 @@ int main() {
 		moves = 0;
 		player_position.y = 1;
 		player_position.x = 1;
+		player_next_action = MOVE_STOP;
 		initialize_board(board);
 		add_internal_borders(board);
 		add_food(board);
@@ -358,8 +398,9 @@ int main() {
 			if (moves % 2 == 0) {
 				update_ghost_positions(board, arr_level[level].nr_ghosts, ghost_array, &pacman_caught);
 			}
-			player_position = update_player_position(board, player_position, &player_next_action, &score, &lives, &game_over, &pacman_caught);
-			print_board(board, score, lives, level, arr_level[level].food_to_win);
+			player_position = update_player_position(board, player_position, &player_next_action, &score, &lives, &game_over, &pacman_caught, &player_last_action);
+			current_player_symbol = update_player_symbol(player_last_action, current_player_symbol);
+			print_board(board, score, lives, level, arr_level[level].food_to_win, current_player_symbol);
 			moves++;
 			usleep(arr_level[level].speed);
 		}
