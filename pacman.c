@@ -2,14 +2,15 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <pthread.h>
+#include <time.h>
 #include "getch.h"
-
 
 #define WALL_SYMBOL '#'
 #define EMPTY_SYMBOL ' '
 #define PLAYER_SYMBOL 'P'
 #define GHOST_SYMBOL 'G'
 #define FOOD_SYMBOL '.'
+#define UNDEFINED_SYMBOL 'u'
 
 #define MOVE_UP 'w'
 #define MOVE_RIGHT 'd'
@@ -41,7 +42,9 @@ typedef struct level_info {
 typedef struct ghost_info {
 	position pos;
 	char last_direction;
-}
+	char covered_field;
+	int active;
+} ghost_info;
 
 
 //FUNCTION: fill board with borders
@@ -110,15 +113,17 @@ void add_food(char board[FIELD_HEIGHT][FIELD_WIDTH]) {
 }
 
 //FUNCTION: print game board
-void print_board(char board[FIELD_HEIGHT][FIELD_WIDTH], int score, int lives, int level) {
+void print_board(char board[FIELD_HEIGHT][FIELD_WIDTH], int score, int lives, int level, int food_to_win) {
 	system("clear");
-	printf("PACMAN --- LEVEL %d\n\n", level);
+	printf("PACMAN ---- LEVEL %d\n\n", level);
 	for (int y = 0; y < FIELD_HEIGHT; y++) {
 		for (int x = 0; x < FIELD_WIDTH; x++) {
 			if (board[y][x] == PLAYER_SYMBOL) {
 				printf("\033[1;33m%c\033[0m", board[y][x]);
 			} else if (board[y][x] == WALL_SYMBOL) {
-				printf("\033[01;44m \033[0m");
+				printf("\033[1;44m \033[0m");
+			} else if (board[y][x] == GHOST_SYMBOL) {
+				printf("\033[1;91mG\033[0m");			
 			} else {
 				printf("%c", board[y][x]);
 			}
@@ -126,14 +131,23 @@ void print_board(char board[FIELD_HEIGHT][FIELD_WIDTH], int score, int lives, in
 		printf("\n");
 	}
 	printf("\n");
-	printf("Score: %d\n", score);
+	printf("Score: %d/%d\n", score, food_to_win);
 	printf("Lives: %d\n", lives);
 }
 
 
 //FUNCTION: update player position + board, score, lives, game_over
-position update_player_position(char board[FIELD_HEIGHT][FIELD_WIDTH], position player_position, char* player_next_action, int* score, int* lives, int* game_over) {
+position update_player_position(char board[FIELD_HEIGHT][FIELD_WIDTH], position player_position, char* player_next_action, int* score, int* lives, int* game_over, int* pacman_caught) {
 	position next_position = player_position;
+	
+	if (*pacman_caught == 1) {
+		if (*lives > 0) {
+			*lives -= 1;
+		} else {
+			*game_over = 1;
+		}
+		*pacman_caught = 0;
+	}
 
 	if (*player_next_action == MOVE_LEFT && player_position.x == 0) {
 		next_position.x = FIELD_WIDTH - 1;
@@ -184,7 +198,83 @@ position update_player_position(char board[FIELD_HEIGHT][FIELD_WIDTH], position 
 }
 
 
-//THREAD: handle user input
+//FUNCTION: move ghosts and update board accordingly
+void update_ghost_positions(char board[FIELD_HEIGHT][FIELD_WIDTH], int nr_ghosts, ghost_info ghost_array[4], int* pacman_caught) {
+	//remove ghosts from board
+	for (int i = 0; i < nr_ghosts; i++) {
+		if (ghost_array[i].covered_field != UNDEFINED_SYMBOL) {
+			board[ghost_array[i].pos.y][ghost_array[i].pos.x] = ghost_array[i].covered_field;
+		}
+	}
+
+	//move ghosts and add them to board
+	for (int i = 0; i < nr_ghosts; i++) {
+		if (ghost_array[i].active == 1) {
+			position next_position;
+			int direction_valid = 0;
+			char next_direction = ghost_array[i].last_direction;
+			char direction_map[4] = {MOVE_UP, MOVE_RIGHT, MOVE_DOWN, MOVE_LEFT};
+
+			//find a valid direction to move
+			while (direction_valid == 0) {
+				next_position = ghost_array[i].pos;
+
+				//first check if continuing in same direction is possible
+				//from second iteration, next_direction holds randomly generated direction
+				switch (next_direction) {
+					case MOVE_UP:
+						next_position.y--;
+						break;
+					case MOVE_RIGHT:
+						next_position.x++;
+						break;
+					case MOVE_DOWN:
+						next_position.y++;
+						break;
+					case MOVE_LEFT:
+						next_position.x--;
+						break;
+					default:
+						break;
+				}
+
+				if (
+					board[next_position.y][next_position.x] != WALL_SYMBOL &&
+					(next_position.y != ghost_array[i].pos.y || next_position.x != ghost_array[i].pos.x) &&
+					next_position.x >= 0 && next_position.x < FIELD_WIDTH
+				) {
+					direction_valid = 1;
+				}
+				
+				//if not, try a different destination
+				if (direction_valid == 0) {
+					char old_direction = next_direction;
+					do {
+						int rand_direction = rand() % 4;
+						next_direction = direction_map[rand_direction];
+					} while (next_direction == old_direction);
+				}
+			}
+			
+			//store content of destination
+			ghost_array[i].pos = next_position;
+			if (board[next_position.y][next_position.x] == FOOD_SYMBOL || board[next_position.y][next_position.x] == EMPTY_SYMBOL) {
+				ghost_array[i].covered_field = board[next_position.y][next_position.x];
+			} else {
+				ghost_array[i].covered_field = UNDEFINED_SYMBOL;
+			}
+
+			//draw ghost to board at new position
+			board[next_position.y][next_position.x] = GHOST_SYMBOL;
+
+			//store direction for next move
+			ghost_array[i].last_direction = next_direction;
+		}
+	}
+}
+
+
+//FUNCTION/THREAD: handle user input
 
 void* getch_loop(void* ptr) {
 	char* player_next_action = (char*) ptr;
@@ -197,21 +287,29 @@ void* getch_loop(void* ptr) {
 
 //main
 int main() {
+	//seed random numbers
+	srand(time(NULL));
+
 	//some variables
 	int game_over = 0;
-	int score = 0;
+	int score;
 	int lives = 3;
 	int level = 0;
+	int moves;
+	int pacman_caught = 0;
 
 	//store next movement direction
 	char player_next_action;
 	player_next_action = MOVE_STOP;
 
-	//store info about all available levels
+	//store info about available levels
 	level_info arr_level[] = {
-		{100000, 0, 20},
-		{75000, 0, 20},
-		{50000, 0, 20}
+		{100000, 1, 60},
+		{90000, 1, 70},
+		{80000, 2, 80},
+		{70000, 2, 90},
+		{60000, 3, 100},
+		{50000, 3, 110}
 	};
 	int nr_levels = sizeof(arr_level) / sizeof(arr_level[0]);
 
@@ -228,22 +326,41 @@ int main() {
 	//start levels
 	for (; level < nr_levels; level++) {
 		score = 0;
+		moves = 0;
 		player_position.y = 1;
 		player_position.x = 1;
 		initialize_board(board);
 		add_internal_borders(board);
 		add_food(board);
+
+		ghost_info ghost_array[4];
+
+		//test initialization
+		for (int i = 0; i < arr_level[level].nr_ghosts; i++) {
+			ghost_array[i].pos.y = 19;
+			ghost_array[i].pos.x = 17;
+			ghost_array[i].last_direction = MOVE_LEFT;
+			ghost_array[i].covered_field = FOOD_SYMBOL;
+			ghost_array[i].active = 1;
+		}
 		
 		//level intro
 		for (int t = 3; t > 0; t--) {
 			system("clear");
 			printf("Level %d starting in %d ...\n", level, t);
 			sleep(1);
+			if (player_next_action == QUIT) {
+				break;
+			}
 		}
 
 		while (game_over == 0 && player_next_action != QUIT && score < arr_level[level].food_to_win) {
-			player_position = update_player_position(board, player_position, &player_next_action, &score, &lives, &game_over);
-			print_board(board, score, lives, level);
+			if (moves % 2 == 0) {
+				update_ghost_positions(board, arr_level[level].nr_ghosts, ghost_array, &pacman_caught);
+			}
+			player_position = update_player_position(board, player_position, &player_next_action, &score, &lives, &game_over, &pacman_caught);
+			print_board(board, score, lives, level, arr_level[level].food_to_win);
+			moves++;
 			usleep(arr_level[level].speed);
 		}
 
