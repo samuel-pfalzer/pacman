@@ -35,6 +35,7 @@ typedef struct level_info {
 	int speed;
 	int nr_ghosts;
 	int food_to_win;
+	int release_after[4];
 } level_info;
 
 
@@ -205,7 +206,7 @@ position update_player_position(char board[FIELD_HEIGHT][FIELD_WIDTH], position 
 
 
 //FUNCTION: move ghosts and update board accordingly
-void update_ghost_positions(char board[FIELD_HEIGHT][FIELD_WIDTH], int nr_ghosts, ghost_info ghost_array[4], int* pacman_caught) {
+void update_ghost_positions(char board[FIELD_HEIGHT][FIELD_WIDTH], int nr_ghosts, ghost_info ghost_array[4], int* pacman_caught, int moves) {
 	
 	//check if pacman was caught
 	for (int i = 0; i < nr_ghosts; i++) {
@@ -224,58 +225,61 @@ void update_ghost_positions(char board[FIELD_HEIGHT][FIELD_WIDTH], int nr_ghosts
 	//move ghosts and add them to board
 	for (int i = 0; i < nr_ghosts; i++) {
 		if (ghost_array[i].active == 1) {
-			position next_position;
+			position next_position = ghost_array[i].pos;
 			int direction_valid = 0;
 			char next_direction = ghost_array[i].last_direction;
 			char direction_map[4] = {MOVE_UP, MOVE_RIGHT, MOVE_DOWN, MOVE_LEFT};
+		
+			//determine direction if ghost needs to move
+			if (moves % ghost_array[i].speed == 0) {
+				//find a valid direction to move
+				while (direction_valid == 0) {
+					next_position = ghost_array[i].pos;
 
-			//find a valid direction to move
-			while (direction_valid == 0) {
-				next_position = ghost_array[i].pos;
+					//first check if continuing in same direction is possible
+					//from second iteration, next_direction holds randomly generated direction
+					switch (next_direction) {
+						case MOVE_UP:
+							next_position.y--;
+							break;
+						case MOVE_RIGHT:
+							next_position.x++;
+							break;
+						case MOVE_DOWN:
+							next_position.y++;
+							break;
+						case MOVE_LEFT:
+							next_position.x--;
+							break;
+						default:
+							break;
+					}
 
-				//first check if continuing in same direction is possible
-				//from second iteration, next_direction holds randomly generated direction
-				switch (next_direction) {
-					case MOVE_UP:
-						next_position.y--;
-						break;
-					case MOVE_RIGHT:
-						next_position.x++;
-						break;
-					case MOVE_DOWN:
-						next_position.y++;
-						break;
-					case MOVE_LEFT:
-						next_position.x--;
-						break;
-					default:
-						break;
-				}
-
-				if (
-					board[next_position.y][next_position.x] != WALL_SYMBOL &&
-					(next_position.y != ghost_array[i].pos.y || next_position.x != ghost_array[i].pos.x) &&
-					next_position.x >= 0 && next_position.x < FIELD_WIDTH
-				) {
-					direction_valid = 1;
+					if (
+						board[next_position.y][next_position.x] != WALL_SYMBOL &&
+						(next_position.y != ghost_array[i].pos.y || next_position.x != ghost_array[i].pos.x) &&
+						next_position.x >= 0 && next_position.x < FIELD_WIDTH
+					) {
+						direction_valid = 1;
+					}
+					
+					//if not, try a different destination
+					if (direction_valid == 0) {
+						char old_direction = next_direction;
+						do {
+							int rand_direction = rand() % 4;
+							next_direction = direction_map[rand_direction];
+						} while (next_direction == old_direction);
+					}
 				}
 				
-				//if not, try a different destination
-				if (direction_valid == 0) {
-					char old_direction = next_direction;
-					do {
-						int rand_direction = rand() % 4;
-						next_direction = direction_map[rand_direction];
-					} while (next_direction == old_direction);
+				//store content of destination
+				ghost_array[i].pos = next_position;
+				if (board[next_position.y][next_position.x] == FOOD_SYMBOL || board[next_position.y][next_position.x] == EMPTY_SYMBOL) {
+					ghost_array[i].covered_field = board[next_position.y][next_position.x];
+				} else {
+					ghost_array[i].covered_field = UNDEFINED_SYMBOL;
 				}
-			}
-			
-			//store content of destination
-			ghost_array[i].pos = next_position;
-			if (board[next_position.y][next_position.x] == FOOD_SYMBOL || board[next_position.y][next_position.x] == EMPTY_SYMBOL) {
-				ghost_array[i].covered_field = board[next_position.y][next_position.x];
-			} else {
-				ghost_array[i].covered_field = UNDEFINED_SYMBOL;
 			}
 
 			//draw ghost to board at new position
@@ -307,6 +311,80 @@ char update_player_symbol (char player_last_action, char current_player_symbol) 
 			break;
 	}
 	return current_player_symbol;
+}
+
+
+//FUNCTION: initialize ghosts for new level
+void init_ghosts (ghost_info ghost_array[4]) {
+	for (int i = 0; i < 4; i++) {
+		ghost_array[i].pos.y = 9;
+		ghost_array[i].pos.x = 8;
+		ghost_array[i].last_direction = MOVE_RIGHT;
+		ghost_array[i].covered_field = EMPTY_SYMBOL;
+		ghost_array[i].active = 0;
+		ghost_array[i].speed = 3 - i;
+	}
+}
+
+
+//FUNCTION: move ghost before spawn
+void pre_release_ghost_move(char board[FIELD_HEIGHT][FIELD_WIDTH], ghost_info ghost_array[4], int ghost_nr) {
+	//move ghost to new direction
+	switch (ghost_array[ghost_nr].pos.x) {
+		case 8:
+			board[9][8] = EMPTY_SYMBOL;
+			ghost_array[ghost_nr].pos.x = 9;
+			ghost_array[ghost_nr].last_direction = MOVE_RIGHT;
+			break;
+		case 9:
+			board[9][9] = EMPTY_SYMBOL;
+			switch (ghost_array[ghost_nr].last_direction) {
+				case MOVE_LEFT:
+					ghost_array[ghost_nr].pos.x = 8;
+					break;
+				case MOVE_RIGHT:
+					ghost_array[ghost_nr].pos.x = 10;
+					break;
+			}
+			break;
+		case 10:
+			board[9][10] = EMPTY_SYMBOL;
+			ghost_array[ghost_nr].pos.x = 9;
+			ghost_array[ghost_nr].last_direction = MOVE_LEFT;
+			break;
+	}
+
+	//draw ghost to board
+	board[ghost_array[ghost_nr].pos.y][ghost_array[ghost_nr].pos.x] = GHOST_SYMBOL;
+}
+
+
+//FUNCTION: coordinate spawn of a ghost
+void release_ghost(char board[FIELD_HEIGHT][FIELD_WIDTH], ghost_info ghost_array[4], int* ghost_nr, int* release_timer) {
+	if (ghost_array[*ghost_nr].pos.x == 8 || ghost_array[*ghost_nr].pos.x == 10) {
+		pre_release_ghost_move(board, ghost_array, *ghost_nr);
+		*release_timer = 6;
+	} else if (ghost_array[*ghost_nr].pos.x == 9 && ghost_array[*ghost_nr].pos.y == 9) {
+		ghost_array[*ghost_nr].pos.y = 8;
+		board[9][9] = EMPTY_SYMBOL;
+		board[8][9] = GHOST_SYMBOL;
+		*release_timer = 4;
+	}
+
+	if (*release_timer == 2) {
+		board[8][9] = WALL_SYMBOL;
+		ghost_array[*ghost_nr].covered_field = board[7][9];
+		board[7][9] = GHOST_SYMBOL;
+		ghost_array[*ghost_nr].pos.y = 7;
+		ghost_array[*ghost_nr].active = 1;
+	}
+
+	if (*release_timer > 0) {
+		*release_timer -= 1;
+	} else {
+		*release_timer = 42;
+		*ghost_nr += 1;
+	}
 }
 
 
@@ -343,12 +421,12 @@ int main() {
 
 	//store info about available levels
 	level_info arr_level[] = {
-		{150000, 0, 60},
-		{140000, 1, 70},
-		{130000, 1, 80},
-		{120000, 2, 90},
-		{110000, 2, 100},
-		{100000, 3, 110}
+//		{150000, 0, 60, {0, 0, 0, 0}},
+		{140000, 1, 70, {20, 20, 20, 20}},
+		{130000, 1, 80, {20, 20, 20, 20}},
+		{120000, 2, 90, {20, 100, 100, 100}},
+		{110000, 2, 100, {20, 80, 80, 80}},
+		{100000, 3, 110, {20, 60, 120, 120}}
 	};
 	int nr_levels = sizeof(arr_level) / sizeof(arr_level[0]);
 
@@ -374,16 +452,10 @@ int main() {
 		add_food(board);
 
 		ghost_info ghost_array[4];
+		int nr_active_ghosts = 0;
+		init_ghosts(ghost_array);
+		int ghost_release_timer = 42;
 
-		//test initialization
-		for (int i = 0; i < arr_level[level].nr_ghosts; i++) {
-			ghost_array[i].pos.y = 19;
-			ghost_array[i].pos.x = 17;
-			ghost_array[i].last_direction = MOVE_LEFT;
-			ghost_array[i].covered_field = FOOD_SYMBOL;
-			ghost_array[i].active = 1;
-		}
-		
 		//level intro
 		for (int t = 3; t > 0; t--) {
 			system("clear");
@@ -395,10 +467,21 @@ int main() {
 		}
 
 		while (game_over == 0 && player_next_action != QUIT && score < arr_level[level].food_to_win) {
-			if (moves % 2 == 0) {
-				update_ghost_positions(board, arr_level[level].nr_ghosts, ghost_array, &pacman_caught);
+			
+			//move alle active ghosts
+			update_ghost_positions(board, nr_active_ghosts, ghost_array, &pacman_caught, moves);
+		
+			//check if ghost needs to be released
+			if ((arr_level[level].nr_ghosts > 0 && arr_level[level].release_after[nr_active_ghosts] == moves) || ghost_release_timer < 42) {
+				release_ghost(board, ghost_array, &nr_active_ghosts, &ghost_release_timer);
+			} else if (nr_active_ghosts < arr_level[level].nr_ghosts && ghost_release_timer == 42 && moves % (ghost_array[nr_active_ghosts].speed + 1) == 1) {
+				pre_release_ghost_move(board, ghost_array, nr_active_ghosts);
 			}
+
+			//move pacman
 			player_position = update_player_position(board, player_position, &player_next_action, &score, &lives, &game_over, &pacman_caught, &player_last_action);
+			
+			//print game to screen, then wait for next iteration
 			current_player_symbol = update_player_symbol(player_last_action, current_player_symbol);
 			print_board(board, score, lives, level, arr_level[level].food_to_win, current_player_symbol);
 			moves++;
