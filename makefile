@@ -1,10 +1,11 @@
-LIBS=-lpthread
+CC := gcc
+LIBS := -lpthread
 
-obj/*.o: src/*.c
-	gcc -c -o $@ $< $(LIBS)
-
-bin/pacman: obj/*.o
-	ld -o $@ $< $(LIBS)
+bin/main: src/*.c
+	$(CC) $^ -o $@ $(LIBS)
 
 clean:
-	rm obj/*.o
+	rm bin/main
+
+run:
+	./bin/main
