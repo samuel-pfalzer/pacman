@@ -1,4 +1,4 @@
 # pacman
-simple pacman game for linux
 
+A simple pacman game for Linux:
 ![Screenshot](https://github.com/samuel-pfalzer/pacman/blob/master/pacman.png)
