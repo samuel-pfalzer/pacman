@@ -3,6 +3,10 @@ controls all steps of spawning a new ghost
 until the ghost is set to active and moved via move_ghost()
 */
 
+#include "../lib/defines.h"
+#include "../lib/spawn_ghost.h"
+#include "../lib/move_ghost_pre_spawn.h"
+
 void spawn_ghost(char board[FIELD_HEIGHT][FIELD_WIDTH], ghost_info ghost_array[4], int* ghost_nr, int* release_timer) {
 	if (ghost_array[*ghost_nr].pos.x == 8 || ghost_array[*ghost_nr].pos.x == 10) {
 		move_ghost_pre_spawn(board, ghost_array, *ghost_nr);

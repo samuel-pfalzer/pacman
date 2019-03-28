@@ -2,7 +2,8 @@
 resets ghosts for a new level
 */
 
-#include "init_ghosts.h"
+#include "../lib/defines.h"
+#include "../lib/init_ghosts.h"
 
 void init_ghosts (ghost_info ghost_array[4]) {
 	for (int i = 0; i < 4; i++) {

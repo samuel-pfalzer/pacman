@@ -4,7 +4,8 @@ preferably, ghosts should continue their movement in the current direction
 if impossible, they randomly choose one of the possible directions
 */
 
-#include "move_ghosts.h"
+#include "../lib/defines.h"
+#include "../lib/move_ghosts.h"
 #include <stdlib.h>
 
 void move_ghosts(char board[FIELD_HEIGHT][FIELD_WIDTH], int nr_ghosts, ghost_info ghost_array[4], int* pacman_caught, int moves) {
@@ -16,8 +17,9 @@ void move_ghosts(char board[FIELD_HEIGHT][FIELD_WIDTH], int nr_ghosts, ghost_inf
 		}
 	}
 	
-	//remove ghosts from board
+	//restore previous content of covered field
 	for (int i = 0; i < nr_ghosts; i++) {
+		board[ghost_array[i].pos.y][ghost_array[i].pos.x] = EMPTY_SYMBOL;
 		if (ghost_array[i].covered_field != UNDEFINED_SYMBOL) {
 			board[ghost_array[i].pos.y][ghost_array[i].pos.x] = ghost_array[i].covered_field;
 		}

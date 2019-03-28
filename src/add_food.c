@@ -4,7 +4,8 @@ add food to all empty spaces except
 	b) the unaccessable fields at both sides
 */
 
-#include "add_food.h"
+#include "../lib/defines.h"
+#include "../lib/add_food.h"
 
 void add_food(char board[FIELD_HEIGHT][FIELD_WIDTH]) {
 	for (int y = 0; y < FIELD_HEIGHT; y++) {

@@ -2,7 +2,8 @@
 FUNCTION: initialize board with borders(/walls) and spaces
 */
 
-#include "init_board.h"
+#include "../lib/defines.h"
+#include "../lib/init_board.h"
 
 void init_board(char board[FIELD_HEIGHT][FIELD_WIDTH]) {
 	

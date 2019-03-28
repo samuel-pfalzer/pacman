@@ -1,3 +1,9 @@
+#include "../lib/defines.h"
+#include "../lib/print_board.h"
+
+#include <stdio.h>
+#include <stdlib.h>
+
 void print_board(
 	char board[FIELD_HEIGHT][FIELD_WIDTH],
 	int score,
@@ -5,7 +11,7 @@ void print_board(
 	int level,
 	int food_to_win,
 	char player_last_action
-){
+) {
 	system("clear");
 
 	//update player symbol (v, <, ^, >) based on movement direction

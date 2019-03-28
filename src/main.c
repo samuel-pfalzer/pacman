@@ -1,9 +1,21 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
+#include <termios.h>
 #include <pthread.h>
 #include <time.h>
+
 #include "../lib/getch.h"
+#include "../lib/defines.h"
+#include "../lib/add_food.h"
+#include "../lib/getch_loop.h"
+#include "../lib/init_board.h"
+#include "../lib/init_ghosts.h"
+#include "../lib/move_ghost_pre_spawn.h"
+#include "../lib/move_ghosts.h"
+#include "../lib/move_player.h"
+#include "../lib/print_board.h"
+#include "../lib/spawn_ghost.h"
 
 
 int main() {

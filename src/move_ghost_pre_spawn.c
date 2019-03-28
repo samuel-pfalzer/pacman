@@ -2,7 +2,8 @@
 moves ghosts whilst they are waiting to be spawned, but still inactive
 */
 
-#include "move_ghost_pre_spawn.h"
+#include "../lib/defines.h"
+#include "../lib/move_ghost_pre_spawn.h"
 
 void move_ghost_pre_spawn(char board[FIELD_HEIGHT][FIELD_WIDTH], ghost_info ghost_array[4], int ghost_nr) {
 	//move ghost to new direction

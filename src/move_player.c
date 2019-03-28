@@ -2,6 +2,9 @@
 move the player based on input provided by the input handler thread
 */
 
+#include "../lib/defines.h"
+#include "../lib/move_player.h"
+
 position move_player(char board[FIELD_HEIGHT][FIELD_WIDTH], position player_position, char* player_next_action, int* score, int* lives, int* game_over, int* pacman_caught, char* player_last_action) {
 	position next_position = player_position;
 	

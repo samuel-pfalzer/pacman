@@ -3,7 +3,8 @@ function to get user input constantly
 designed to be executed by a dedicated thread
 */
 
-#include "getch_loop.h"
+#include "../lib/defines.h"
+#include "../lib/getch_loop.h"
 #include "../lib/getch.h"
 
 void* getch_loop(void* ptr) {
